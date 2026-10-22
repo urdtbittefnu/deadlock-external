@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadlock External — Educational Reverse-Engineering Reference</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg-0:#070912;
+    --bg-1:#0d1024;
+    --bg-2:#141a3a;
+    --accent:#7c5cff;
+    --accent-2:#22d3ee;
+    --text:#e8eaf6;
+    --muted:#9aa1c0;
+    --card:#12162e;
+    --border:rgba(124,92,255,.18);
+  }
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(124,92,255,.22), transparent 60%),
+      radial-gradient(900px 500px at 90% 0%, rgba(34,211,238,.12), transparent 55%),
+      linear-gradient(160deg,var(--bg-0) 0%,var(--bg-1) 45%,var(--bg-2) 100%);
+    background-attachment:fixed;
+    min-height:100vh;
+    line-height:1.6;
+    overflow-x:hidden;
+  }
+
+  /* ---------- NAV ---------- */
+  .nav{
+    position:sticky;top:0;z-index:100;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:24px;
+    padding:14px 28px;
+    background:rgba(9,12,26,.62);
+    backdrop-filter:blur(16px) saturate(160%);
+    -webkit-backdrop-filter:blur(16px) saturate(160%);
+    border-bottom:1px solid rgba(124,92,255,.16);
+  }
+  .brand{
+    display:flex;align-items:center;gap:10px;
+    font-weight:800;font-size:1.05rem;letter-spacing:.3px;
+    white-space:nowrap;
+  }
+  .brand .logo{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;font-size:15px;
+    box-shadow:0 0 18px rgba(124,92,255,.55);
+  }
+  .brand span.grad{
+    background:linear-gradient(90deg,#a28bff,#22d3ee);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .nav-links{display:flex;gap:26px;align-items:center}
+  .nav-links a{
+    color:var(--muted);text-decoration:none;font-size:.92rem;font-weight:500;
+    transition:color .2s ease;
+  }
+  .nav-links a:hover{color:#fff}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:11px 22px;border-radius:11px;
+    font-weight:700;font-size:.92rem;text-decoration:none;
+    border:1px solid transparent;cursor:pointer;
+    transition:transform .18s ease,box-shadow .18s ease,background .18s ease;
+  }
+  .btn-primary{
+    background:linear-gradient(135deg,#7c5cff,#5b3df0 60%,#3aa8f0);
+    color:#fff;
+    box-shadow:0 8px 26px rgba(124,92,255,.4),inset 0 1px 0 rgba(255,255,255,.22);
+  }
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(124,92,255,.6)}
+  .btn-ghost{
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.16);
+    color:var(--text);
+  }
+  .btn-ghost:hover{background:rgba(255,255,255,.09);transform:translateY(-2px)}
+  .nav .btn{padding:9px 18px;font-size:.86rem}
+
+  /* ---------- LAYOUT ---------- */
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:88px 0 64px;text-align:center;position:relative}
+  .pill{
+    display:inline-flex;align-items:center;gap:9px;
+    padding:7px 16px;border-radius:999px;
+    background:rgba(124,92,255,.1);
+    border:1px solid rgba(124,92,255,.34);
+    color:#c9bfff;font-size:.8rem;font-weight:600;letter-spacing:.4px;
+    text-transform:uppercase;
+    box-shadow:0 0 24px rgba(124,92,255,.2);
+  }
+  .pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:#22d3ee;box-shadow:0 0 10px #22d3ee;
+    animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .hero h1{
+    margin:22px auto 18px;
+    font-size:clamp(2.1rem,5.2vw,3.7rem);
+    line-height:1.12;font-weight:800;letter-spacing:-.02em;
+    max-width:820px;
+    background:linear-gradient(100deg,#ffffff 10%,#b9a8ff 45%,#22d3ee 90%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.lead{
+    color:var(--muted);font-size:1.05rem;max-width:640px;margin:0 auto 32px;
+  }
+  .hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:44px}
+  .hero-actions .btn{padding:14px 30px;font-size:1rem}
+
+  .stats{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+    max-width:820px;margin:0 auto;
+  }
+  .stat{
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;padding:18px 12px;
+    backdrop-filter:blur(8px);
+  }
+  .stat .val{font-size:1.22rem;font-weight:800;color:#fff;letter-spacing:-.01em}
+  .stat .lbl{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:3px}
+
+  /* ---------- SECTIONS ---------- */
+  section.block{padding:64px 0}
+  .section-head{text-align:center;margin-bottom:44px}
+  .section-head .kicker{
+    color:#8b7bff;font-size:.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  }
+  .section-head h2{
+    font-size:clamp(1.6rem,3.4vw,2.3rem);font-weight:800;margin-top:10px;letter-spacing:-.01em;
+  }
+  .section-head p{color:var(--muted);max-width:560px;margin:12px auto 0;font-size:.98rem}
+
+  /* ---------- FEATURES ---------- */
+  .features{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+  }
+  .card{
+    position:relative;
+    background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:16px;
+    padding:26px 22px 24px;
+    overflow:hidden;
+    transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;
+  }
+  .card::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    opacity:.85;
+  }
+  .card:hover{
+    transform:translateY(-6px);
+    border-color:rgba(124,92,255,.4);
+    box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 0 1px rgba(124,92,255,.14);
+  }
+  .card .ico{
+    font-size:1.6rem;width:48px;height:48px;border-radius:12px;
+    display:grid;place-items:center;margin-bottom:16px;
+    background:rgba(124,92,255,.12);
+    border:1px solid rgba(124,92,255,.3);
+  }
+  .card h3{font-size:1.06rem;font-weight:700;margin-bottom:8px;color:#fff}
+  .card p{color:var(--muted);font-size:.9rem}
+
+  /* ---------- HOW IT WORKS ---------- */
+  .steps{position:relative;max-width:720px;margin:0 auto;padding-left:8px}
+  .steps::before{
+    content:"";position:absolute;left:27px;top:12px;bottom:12px;width:3px;
+    background:linear-gradient(180deg,var(--accent),var(--accent-2),transparent);
+    border-radius:3px;
+  }
+  .step{position:relative;display:flex;gap:22px;padding:0 0 40px 0}
+  .step:last-child{padding-bottom:0}
+  .step .num{
+    flex:0 0 56px;width:56px;height:56px;border-radius:50%;
+    display:grid;place-items:center;
+    font-weight:800;font-size:1.15rem;color:#fff;
+    background:linear-gradient(135deg,#231a63,#141a3a);
+    border:2px solid rgba(124,92,255,.55);
+    box-shadow:0 0 0 5px rgba(124,92,255,.08),0 0 22px rgba(124,92,255,.28);
+    position:relative;z-index:1;
+  }
+  .step .body h3{font-size:1.05rem;font-weight:700;margin-bottom:6px;padding-top:12px}
+  .step .body p{color:var(--muted);font-size:.92rem}
+
+  /* ---------- FAQ ---------- */
+  .faq{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+  details{
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:13px;overflow:hidden;
+    transition:border-color .2s ease,background .2s ease;
+  }
+  details[open]{border-color:rgba(124,92,255,.42);background:rgba(124,92,255,.06)}
+  summary{
+    list-style:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:18px 22px;
+    font-weight:600;font-size:.98rem;color:#fff;
+    user-select:none;
+  }
+  summary::-webkit-details-marker{display:none}
+  summary .plus{
+    flex:0 0 26px;width:26px;height:26px;border-radius:8px;
+    display:grid;place-items:center;
+    background:rgba(124,92,255,.16);
+    border:1px solid rgba(124,92,255,.35);
+    color:#c9bfff;font-size:1.05rem;font-weight:600;line-height:1;
+    transition:transform .25s ease,color .25s ease,background .25s ease;
+  }
+  details[open] summary .plus{
+    transform:rotate(45deg);
+    background:var(--accent);color:#fff;
+  }
+  details .answer{
+    padding:0 22px 20px;color:var(--muted);font-size:.9rem;
+  }
+
+  /* ---------- CTA BANNER ---------- */
+  .cta-banner{
+    position:relative;text-align:center;
+    padding:60px 30px;
+    border-radius:22px;
+    background:linear-gradient(135deg,rgba(124,92,255,.16),rgba(34,211,238,.08));
+    border:1px solid rgba(124,92,255,.32);
+    overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.4);
+  }
+  .cta-banner::before{
+    content:"";position:absolute;inset:-40% -10%;
+    background:radial-gradient(closest-side,rgba(124,92,255,.55),transparent 70%);
+    filter:blur(20px);opacity:.7;pointer-events:none;
+  }
+  .cta-banner > *{position:relative;z-index:1}
+  .cta-banner h2{
+    font-size:clamp(1.5rem,3.6vw,2.3rem);font-weight:800;letter-spacing:-.01em;
+    max-width:620px;margin:0 auto 12px;
+  }
+  .cta-banner p{color:var(--muted);max-width:520px;margin:0 auto 28px}
+  .cta-banner .btn{padding:15px 36px;font-size:1.02rem}
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    margin-top:70px;
+    border-top:1px solid rgba(255,255,255,.08);
+    padding:34px 0 40px;
+  }
+  .foot-inner{
+    display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;
+    color:var(--muted);font-size:.86rem;
+  }
+  .foot-inner a{color:#b9a8ff;text-decoration:none;font-weight:600}
+  .foot-inner a:hover{text-decoration:underline}
+  .foot-brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700}
+  .foot-brand .logo{
+    width:24px;height:24px;border-radius:7px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;font-size:12px;
+  }
+  .disclaimer{
+    margin-top:18px;font-size:.76rem;color:#6c7392;max-width:760px;line-height:1.55;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:900px){
+    .features{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:640px){
+    .nav{padding:12px 16px}
+    .nav-links{display:none}
+    .nav .btn{padding:8px 14px;font-size:.8rem}
+    .brand{font-size:.95rem}
+
+    .wrap{padding:0 16px}
+    .hero{padding:56px 0 44px}
+    .hero p.lead{font-size:.95rem}
+    .hero-actions .btn{width:100%;max-width:340px}
+
+    .stats{grid-template-columns:1fr 1fr;gap:10px}
+    .stat{padding:14px 10px}
+    .stat .val{font-size:1.05rem}
+
+    section.block{padding:48px 0}
+    .features{grid-template-columns:1fr}
+
+    .steps::before{left:23px}
+    .step{gap:16px}
+    .step .num{flex:0 0 48px;width:48px;height:48px;font-size:1rem}
+
+    .cta-banner{padding:44px 20px;border-radius:18px}
+    .cta-banner .btn{width:100%;max-width:340px}
+
+    .foot-inner{flex-direction:column;text-align:center}
+  }
+</style>
+</head>
+<body>
+
+  <!-- ================= NAV ================= -->
+  <nav class="nav">
+    <div class="brand">
+      <div class="logo">🎯</div>
+      <span>Deadlock<span class="grad">External</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a class="btn btn-primary" href="https://gitscore.cc">Download</a>
+  </nav>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero wrap">
+    <div class="pill"><span class="dot"></span> Educational Reverse-Engineering Reference</div>
+    <h1>Deadlock External Cheats — Built for Learning, Not Cheating</h1>
+    <p class="lead">
+      An open source external overlay project for Deadlock: ESP wallhack, aimbot logic, skeleton
+      overlay and radar — documented and shipped as a study reference for Windows reverse-engineering.
+      Injector included. Use it to learn, not to ruin matches.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://gitscore.cc">⬇ Download for Windows</a>
+      <a class="btn btn-ghost" href="https://gitscore.cc">View on GitHub</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="val">12.4k+</div><div class="lbl">Downloads</div></div>
+      <div class="stat"><div class="val">v2.3.1</div><div class="lbl">Version</div></div>
+      <div class="stat"><div class="val">Win 10 / 11</div><div class="lbl">Platform</div></div>
+      <div class="stat"><div class="val">Free &amp; OSS</div><div class="lbl">License</div></div>
+    </div>
+  </header>
+
+  <!-- ================= FEATURES ================= -->
+  <section class="block wrap" id="features">
+    <div class="section-head">
+      <div class="kicker">Capabilities</div>
+      <h2>What's inside the reference build</h2>
+      <p>Six documented modules, each written to demonstrate a specific external-overlay technique.</p>
+    </div>
+    <div class="features">
+      <div class="card">
+        <div class="ico">👁️</div>
+        <h3>ESP Wallhack</h3>
+        <p>Box and name ESP rendered through an external overlay — a study of screen-space projection and entity reading.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🎯</div>
+        <h3>Aimbot Logic</h3>
+        <p>FOV-based target selection and smoothing math, exposed as readable code for learning aim-assist fundamentals.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🦴</div>
+        <h3>Skeleton Overlay</h3>
+        <p>Bone-chain rendering that illustrates how player skeletons are parsed and drawn over the game window.</p>
+      </div>
+      <div class="card">
+        <div class="ico">📡</div>
+        <h3>Radar</h3>
+        <p>A compact 2D radar showing entity positions relative to the local player — great for spatial-math practice.</p>
+      </div>
+      <div class="card">
+        <div class="ico">💉</div>
+        <h3>Injector Included</h3>
+        <p>A documented DLL injector to understand process attachment, module loading and cleanup on Windows.</p>
+      </div>
+      <div class="card">
+        <div class="ico">📚</div>
+        <h3>Annotated Source</h3>
+        <p>Every module ships with comments explaining offsets, structures and rendering tricks for readers.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HOW IT WORKS ================= -->
+  <section class="block wrap" id="how">
+    <div class="section-head">
+      <div class="kicker">Setup</div>
+      <h2>How it works</h2>
+      <p>Three steps from download to a running educational instance.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="body">
+          <h3>Download &amp; extract</h3>
+          <p>Grab the latest release from gitscore.cc and extract the archive into a clean folder. Everything is self-contained — no installers, no background services.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="body">
+          <h3>Run the injector</h3>
+          <p>Launch Deadlock in windowed or borderless mode, then run the included injector and point it at the provided DLL to attach the external overlay.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="body">
+          <h3>Study the overlay</h3>
+          <p>Toggle ESP, skeleton, aimbot and radar from the in-app panel. Read the annotated source alongside it to understand each technique in practice.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="block wrap" id="faq">
+    <div class="section-head">
+      <div class="kicker">Questions</div>
+      <h2>Frequently asked</h2>
+      <p>Everything you need to know before you download.</p>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Is this actually a cheat? <span class="plus">+</span></summary>
+        <div class="answer">It is a reverse-engineering reference project. The code demonstrates external overlay techniques for educational study. Using it in live matches violates Deadlock's terms of service — the intent is learning, not competitive play.</div>
+      </details>
+      <details>
+        <summary>What does it include? <span class="plus">+</span></summary>
+        <div class="answer">Four modules — ESP wallhack, aimbot logic, skeleton overlay and radar — plus a documented DLL injector and fully annotated source code, all packaged for Windows 10 and 11.</div>
+      </details>
+      <details>
+        <summary>Is it free and open source? <span class="plus">+</span></summary>
+        <div class="answer">Yes. The full source is published and free to download from gitscore.cc. You can read, fork and modify every line to deepen your understanding of external overlay development.</div>
+      </details>
+      <details>
+        <summary>Will it work on my system? <span class="plus">+</span></summary>
+        <div class="answer">It targets Windows 10 and Windows 11 on x64. Run Deadlock in windowed or borderless mode. The injector requires standard user permissions; no kernel drivers are involved.</div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="block wrap">
+    <div class="cta-banner">
+      <h2>Learn how external overlays really work</h2>
+      <p>Download the annotated Deadlock External reference build and study ESP, aimbot, skeleton and radar code hands-on.</p>
+      <a class="btn btn-primary" href="https://gitscore.cc">⬇ Download from gitscore.cc</a>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <div class="wrap">
+      <div class="foot-inner">
+        <div class="foot-brand">
+          <div class="logo">🎯</div>
+          Deadlock External
+        </div>
+        <div>© 2025 deadlock-external — For educational purposes only.</div>
+        <div><a href="https://gitscore.cc">GitHub Repository</a></div>
+      </div>
+      <p class="disclaimer">
+        Disclaimer: deadlock-external is published strictly as a reverse-engineering and security-education
+        reference. It is not affiliated with or endorsed by Valve or the Deadlock team. Using it in online
+        matches violates the game's terms of service and may result in a ban. Use it responsibly, offline,
+        and for learning.
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>
