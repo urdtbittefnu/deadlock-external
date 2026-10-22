@@ -1,0 +1,7 @@
+# deadlock-external — educational external cheat tooling for Deadlock
+# Python 3.11+ (uses tomllib)
+# No third-party runtime deps required; ctypes ships with CPython.
+#
+# Optional dev deps for testing/linting:
+pytest>=8.0.0 ; python_version >= "3.11"
+ruff>=0.5.0 ; python_version >= "3.11"
